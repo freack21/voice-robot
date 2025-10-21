@@ -1,0 +1,6 @@
+gpiozero
+lgpio
+python-socketio
+websocket-client
+hx711
+eventlet
