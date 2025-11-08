@@ -4,6 +4,7 @@ import eventlet
 import time
 import json
 import os
+import threading
 
 # ===============================
 # CONFIGURASI DASAR
@@ -28,16 +29,20 @@ app = socketio.WSGIApp(sio)
 # INISIALISASI ROBOT
 # ===============================
 robot = Robot()
+connected_clients = set()
+distance_cache = 0.0  # untuk menyimpan jarak terakhir
 
 # ===============================
 # EVENT HANDLER
 # ===============================
 @sio.event
 def connect(sid, environ):
+  connected_clients.add(sid)
   print(f"Client connected: {sid}")
 
 @sio.event
 def disconnect(sid):
+  connected_clients.discard(sid)
   print(f"Client disconnected: {sid}")
 
 @sio.on("perintah")
@@ -57,6 +62,11 @@ def on_ping(sid, data):
   sio.emit("pong_robot", {"status": "ok"})
   if DEBUG:
     print(f"[PING] dari {sid}")
+
+@sio.on("get_distance")
+def on_get_distance(sid):
+  # Client minta jarak manual (optional)
+  sio.emit("sensor_data", {"distance": distance_cache}, to=sid)
 
 # ===============================
 # LOGIKA KONTROL ROBOT
@@ -110,11 +120,43 @@ def run_commands(commands):
     parse_move_command(cmd)
 
 # ===============================
+# THREAD PEMBACAAN SENSOR
+# ===============================
+def sensor_loop():
+  global distance_cache
+  while True:
+    try:
+      jarak = robot.baca_jarak()
+      distance_cache = jarak  # simpan hasil terbaru
+
+      if DEBUG:
+        print(f"[SENSOR] Jarak: {jarak:.2f} cm")
+
+      # kirim data ke semua client aktif
+      if connected_clients:
+        sio.emit("sensor_data", {"distance": jarak})
+
+      # kalau mau auto-stop robot saat dekat halangan
+      # if jarak < 10:
+      #   robot.berhenti()
+      #   sio.emit("alert", {"msg": "🚨 Terlalu dekat! Robot berhenti."})
+
+      time.sleep(0.2)  # baca setiap 200ms (5x per detik)
+
+    except Exception as e:
+      print("[ERROR sensor_loop]", e)
+      time.sleep(1)
+
+# ===============================
 # MAIN LOOP
 # ===============================
 if __name__ == "__main__":
   print(f"🚀 Socket.IO robot server running on {HOST}:{PORT}")
   print("Waiting for clients...\n")
+
+  # Jalankan thread sensor
+  threading.Thread(target=sensor_loop, daemon=True).start()
+
   try:
     eventlet.wsgi.server(eventlet.listen((HOST, PORT)), app)
   except KeyboardInterrupt:
