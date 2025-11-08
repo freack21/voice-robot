@@ -132,9 +132,9 @@ def sensor_loop():
       if DEBUG:
         print(f"[SENSOR] Jarak: {jarak:.2f} cm")
 
-      # kirim data ke semua client aktif
-      if connected_clients:
-        sio.emit("sensor_data", {"distance": jarak})
+      # # kirim data ke semua client aktif
+      # if connected_clients:
+      #   sio.emit("sensor_data", {"distance": jarak})
 
       # kalau mau auto-stop robot saat dekat halangan
       # if jarak < 10:
