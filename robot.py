@@ -1,69 +1,67 @@
-from gpiozero import PWMOutputDevice, DigitalOutputDevice
+from gpiozero import PWMOutputDevice, DigitalOutputDevice, DistanceSensor
 from gpiozero.pins.lgpio import LGPIOFactory
-import lgpio
-import time
 
 class Robot:
   def __init__(self):
     # Motor pin mapping
     self.motors = {
       'M1': {'IN1': 24, 'IN2': 23, 'EN': 18},
-      'M2': {'IN1': 16, 'IN2': 26, 'EN': 12},
-      'M3': {'IN1': 6,  'IN2': 5,  'EN': 13},
-      'M4': {'IN1': 20, 'IN2': 21, 'EN': 19},
+      'M2': {'IN1': 6, 'IN2': 5, 'EN': 13},
+      'M3': {'IN1': 20, 'IN2': 21, 'EN': 19},
+      'M4': {'IN1': 16, 'IN2': 26, 'EN': 12},
     }
 
     self.speed = 0.75
-    self.pin_factory = LGPIOFactory()
+
+    pin_factory = LGPIOFactory()
 
     # Setup motor pins
     for _, m in self.motors.items():
-      m['L_IN'] = DigitalOutputDevice(m['IN1'], pin_factory=self.pin_factory)
-      m['R_IN'] = DigitalOutputDevice(m['IN2'], pin_factory=self.pin_factory)
-      m['PWM']  = PWMOutputDevice(m['EN'], frequency=1000, pin_factory=self.pin_factory)
+      m['L_IN'] = DigitalOutputDevice(m['IN1'], pin_factory=pin_factory)
+      m['R_IN'] = DigitalOutputDevice(m['IN2'], pin_factory=pin_factory)
+      m['PWM'] = PWMOutputDevice(m['EN'], frequency=1000, pin_factory=pin_factory)
 
-    # ======== Tambahan: Setup sensor Ping Parallax ========
-    self.ping_pin = 4  # misalnya pakai GPIO4
-    self.chip = self.pin_factory.chip
-    lgpio.gpio_claim_output(self.chip, self.ping_pin)  # awalnya mode output
+    # Sensor Ping configuration
+    self.ping_sensor = None
+    self.setup_ping_sensor()
 
-  # ========================================================
-  # =============== SENSOR PING PARALLAX ===================
-  # ========================================================
-  def baca_jarak(self):
-    """Mengukur jarak (cm) dari sensor Ping Parallax."""
-    TRIGGER_PIN = self.ping_pin
-    chip = self.chip
+  def setup_ping_sensor(self):
+    """
+    Setup Parallax Ping 3-pin sensor
+    Pin configuration:
+    - VCC: 5V
+    - GND: Ground
+    - SIG: GPIO 17 (Anda bisa mengganti dengan GPIO lain yang tersedia)
+    """
+    try:
+      # Menggunakan GPIO 17 untuk sensor Ping (bisa diganti sesuai kebutuhan)
+      self.ping_sensor = DistanceSensor(echo=17, trigger=17, max_distance=3.0, 
+                      pin_factory=LGPIOFactory())
+      print("Sensor Ping berhasil diinisialisasi")
+    except Exception as e:
+      print(f"Error inisialisasi sensor Ping: {e}")
+      self.ping_sensor = None
 
-    # Kirim trigger pulse 10us
-    lgpio.gpio_write(chip, TRIGGER_PIN, 1)
-    time.sleep(10e-6)
-    lgpio.gpio_write(chip, TRIGGER_PIN, 0)
+  def get_distance(self):
+    """
+    Mendapatkan jarak dalam centimeter dari sensor Ping
+    
+    Returns:
+      float: Jarak dalam cm, atau -1 jika terjadi error
+    """
+    if self.ping_sensor is None:
+      print("Sensor Ping tidak terinisialisasi")
+      return -1
+    
+    try:
+      # gpiozero DistanceSensor mengembalikan jarak dalam meter
+      distance_m = self.ping_sensor.distance
+      distance_cm = distance_m * 100  # Konversi ke centimeter
+      return round(distance_cm, 2)
+    except Exception as e:
+      print(f"Error membaca sensor: {e}")
+      return -1
 
-    # Ganti pin jadi input untuk baca echo
-    lgpio.gpio_claim_input(chip, TRIGGER_PIN)
-
-    # Tunggu sampai sinyal naik
-    start_time = time.time()
-    while lgpio.gpio_read(chip, TRIGGER_PIN) == 0:
-      start_time = time.time()
-
-    # Tunggu sampai sinyal turun
-    while lgpio.gpio_read(chip, TRIGGER_PIN) == 1:
-      end_time = time.time()
-
-    # Kembalikan ke mode output lagi
-    lgpio.gpio_claim_output(chip, TRIGGER_PIN)
-
-    # Hitung jarak (dalam cm)
-    pulse_duration = end_time - start_time
-    distance_cm = pulse_duration * 17150  # speed of sound (34300/2)
-
-    return round(distance_cm, 2)
-
-  # ========================================================
-  # ================= MOTOR FUNCTIONS ======================
-  # ========================================================
   def motor_forward(self, motor, speed=0):
     motor['L_IN'].on()
     motor['R_IN'].off()
@@ -80,16 +78,20 @@ class Robot:
     motor['PWM'].value = 0
 
   def berhenti(self):
-    for m in self.motors.values():
-      self.motor_stop(m)
+    for motor in self.motors.values():
+      self.motor_stop(motor)
 
   def maju(self, speed=0):
-    for m in self.motors.values():
-      self.motor_forward(m, speed)
+    self.motor_forward(self.motors["M1"], speed)
+    self.motor_forward(self.motors["M2"], speed)
+    self.motor_forward(self.motors["M3"], speed)
+    self.motor_forward(self.motors["M4"], speed)
 
   def mundur(self, speed=0):
-    for m in self.motors.values():
-      self.motor_backward(m, speed)
+    self.motor_backward(self.motors["M1"], speed)
+    self.motor_backward(self.motors["M2"], speed)
+    self.motor_backward(self.motors["M3"], speed)
+    self.motor_backward(self.motors["M4"], speed)
 
   def kiri(self, speed=0):
     self.motor_backward(self.motors["M1"], speed * 0.5)

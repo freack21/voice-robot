@@ -29,20 +29,39 @@ app = socketio.WSGIApp(sio)
 # INISIALISASI ROBOT
 # ===============================
 robot = Robot()
-connected_clients = set()
-distance_cache = 0.0  # untuk menyimpan jarak terakhir
+
+# ===============================
+# VARIABEL GLOBAL UNTUK DEBUG JARAK
+# ===============================
+distance_debug_enabled = True
+
+# ===============================
+# THREAD UNTUK DEBUG JARAK
+# ===============================
+def distance_debug_loop():
+  """Thread untuk menampilkan jarak setiap 1 detik"""
+  while distance_debug_enabled:
+    try:
+      distance = robot.get_distance()
+      if distance != -1:
+        print(f"[DEBUG JARAK] {distance} cm")
+      else:
+        print("[DEBUG JARAK] Gagal membaca sensor")
+    except Exception as e:
+      print(f"[DEBUG JARAK ERROR] {e}")
+    
+    # Tunggu 1 detik
+    time.sleep(1)
 
 # ===============================
 # EVENT HANDLER
 # ===============================
 @sio.event
 def connect(sid, environ):
-  connected_clients.add(sid)
   print(f"Client connected: {sid}")
 
 @sio.event
 def disconnect(sid):
-  connected_clients.discard(sid)
   print(f"Client disconnected: {sid}")
 
 @sio.on("perintah")
@@ -63,10 +82,22 @@ def on_ping(sid, data):
   if DEBUG:
     print(f"[PING] dari {sid}")
 
+@sio.on("toggle_distance_debug")
+def on_toggle_distance_debug(sid, data):
+  """Event untuk menyalakan/mematikan debug jarak dari client"""
+  global distance_debug_enabled
+  distance_debug_enabled = data.get("enabled", not distance_debug_enabled)
+  status = "AKTIF" if distance_debug_enabled else "NONAKTIF"
+  print(f"[DEBUG JARAK] {status}")
+  sio.emit("distance_debug_status", {"enabled": distance_debug_enabled})
+
 @sio.on("get_distance")
-def on_get_distance(sid):
-  # Client minta jarak manual (optional)
-  sio.emit("sensor_data", {"distance": distance_cache}, to=sid)
+def on_get_distance(sid, data):
+  """Event untuk mendapatkan jarak saat ini"""
+  distance = robot.get_distance()
+  sio.emit("current_distance", {"distance": distance})
+  if DEBUG:
+    print(f"[GET_DISTANCE] {distance} cm")
 
 # ===============================
 # LOGIKA KONTROL ROBOT
@@ -120,32 +151,14 @@ def run_commands(commands):
     parse_move_command(cmd)
 
 # ===============================
-# THREAD PEMBACAAN SENSOR
+# FUNGSI CLEANUP
 # ===============================
-def sensor_loop():
-  global distance_cache
-  while True:
-    try:
-      jarak = robot.baca_jarak()
-      distance_cache = jarak  # simpan hasil terbaru
-
-      if DEBUG:
-        print(f"[SENSOR] Jarak: {jarak:.2f} cm")
-
-      # # kirim data ke semua client aktif
-      # if connected_clients:
-      #   sio.emit("sensor_data", {"distance": jarak})
-
-      # kalau mau auto-stop robot saat dekat halangan
-      # if jarak < 10:
-      #   robot.berhenti()
-      #   sio.emit("alert", {"msg": "🚨 Terlalu dekat! Robot berhenti."})
-
-      time.sleep(0.2)  # baca setiap 200ms (5x per detik)
-
-    except Exception as e:
-      print("[ERROR sensor_loop]", e)
-      time.sleep(1)
+def cleanup():
+  """Bersihkan resources sebelum exit"""
+  global distance_debug_enabled
+  distance_debug_enabled = False
+  robot.berhenti()
+  print("\n🛑 Robot berhenti dan resources dibersihkan")
 
 # ===============================
 # MAIN LOOP
@@ -153,12 +166,15 @@ def sensor_loop():
 if __name__ == "__main__":
   print(f"🚀 Socket.IO robot server running on {HOST}:{PORT}")
   print("Waiting for clients...\n")
-
-  # Jalankan thread sensor
-  threading.Thread(target=sensor_loop, daemon=True).start()
-
+  
+  # Mulai thread debug jarak
+  debug_thread = threading.Thread(target=distance_debug_loop, daemon=True)
+  debug_thread.start()
+  print("📊 Debug jarak aktif - menampilkan jarak setiap 1 detik")
+  print("   Gunakan event 'toggle_distance_debug' untuk menonaktifkan\n")
+  
   try:
     eventlet.wsgi.server(eventlet.listen((HOST, PORT)), app)
   except KeyboardInterrupt:
-    robot.berhenti()
+    cleanup()
     print("Robot stopped manually.")
