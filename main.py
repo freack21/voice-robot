@@ -33,7 +33,7 @@ robot = Robot()
 # ===============================
 # VARIABEL GLOBAL UNTUK DEBUG JARAK
 # ===============================
-distance_debug_enabled = True
+distance_debug_enabled = False
 
 # ===============================
 # THREAD UNTUK DEBUG JARAK
@@ -147,7 +147,7 @@ def wait_time_to_stop(_time):
 
 def run_commands(commands):
   for c in commands:
-    cmd = f"move|{c['type']}:{c['time']},{c['speed']}"
+    cmd = f"move|{c['type']}:{c['duration']},{c['speed']}"
     parse_move_command(cmd)
 
 # ===============================
