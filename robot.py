@@ -31,11 +31,10 @@ class Robot:
     Pin configuration:
     - VCC: 5V
     - GND: Ground
-    - SIG: GPIO 17 (Anda bisa mengganti dengan GPIO lain yang tersedia)
     """
     try:
       # Menggunakan GPIO 17 untuk sensor Ping (bisa diganti sesuai kebutuhan)
-      self.ping_sensor = DistanceSensor(echo=17, trigger=17, max_distance=3.0, 
+      self.ping_sensor = DistanceSensor(echo=27, trigger=17, max_distance=3.0, 
                       pin_factory=LGPIOFactory())
       print("Sensor Ping berhasil diinisialisasi")
     except Exception as e:

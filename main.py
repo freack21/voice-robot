@@ -20,6 +20,11 @@ PORT = _env_.get("PORT", 3210)
 DEBUG = _env_.get("DEBUG", True)
 
 # ===============================
+# VARIABEL GLOBAL UNTUK DEBUG JARAK
+# ===============================
+distance_debug_enabled = DEBUG
+
+# ===============================
 # INISIALISASI SERVER
 # ===============================
 sio = socketio.Server(cors_allowed_origins="*")
@@ -30,10 +35,7 @@ app = socketio.WSGIApp(sio)
 # ===============================
 robot = Robot()
 
-# ===============================
-# VARIABEL GLOBAL UNTUK DEBUG JARAK
-# ===============================
-distance_debug_enabled = False
+auto_stop = False
 
 # ===============================
 # THREAD UNTUK DEBUG JARAK
@@ -49,7 +51,7 @@ def distance_debug_loop():
         print("[DEBUG JARAK] Gagal membaca sensor")
     except Exception as e:
       print(f"[DEBUG JARAK ERROR] {e}")
-    
+
     # Tunggu 1 detik
     time.sleep(1)
 
@@ -69,6 +71,20 @@ def on_perintah(sid, command):
   if DEBUG:
     print(f"[PERINTAH] {command}")
   handle_command(command)
+
+@sio.on("ping")
+def on_ping(sid):
+  global auto_stop
+  if DEBUG:
+    print(f"[PING] sending ping..")
+  sio.emit("pong", {"auto_stop": auto_stop})
+
+@sio.on("auto_stop")
+def on_auto_stop(sid, state):
+  global auto_stop
+  if DEBUG:
+    print(f"[AUTO STOP] set to '{state}'")
+  auto_stop = state
 
 @sio.on("run_commands")
 def on_run_commands(sid, commands):
@@ -108,7 +124,7 @@ def handle_command(command):
   else:
     move_commands(command)
 
-def move_commands(command, speed=0, _time=0.0):
+def move_commands(command, speed=0, _time=0.0, max_distance=10):
   if command == "berhenti":
     robot.berhenti()
   elif command == "maju":
@@ -127,27 +143,46 @@ def move_commands(command, speed=0, _time=0.0):
     robot.putar_kiri(speed)
   elif command == "putar_kanan":
     robot.putar_kanan(speed)
-  
-  wait_time_to_stop(_time)
+
+  wait_time_to_stop(_time, max_distance)
 
 def parse_move_command(command):
   try:
     _, data = command.split("|")
-    cmd, time_and_speed = data.split(":")
-    _time, speed = time_and_speed.split(",")
-    move_commands(cmd, float(speed) / 100, float(_time))
+    cmd, _etc = data.split(":")
+    _time, speed, max_distance = _etc.split(",")
+    move_commands(cmd, float(speed) / 100, float(_time), float(max_distance))
   except Exception as e:
     print("[ERROR parse_move_command]", e)
 
-def wait_time_to_stop(_time):
+def wait_time_to_stop(_time=0, obstacle_threshold=10):
+  global auto_stop
+
   if _time <= 0:
     return
-  time.sleep(_time)
+
+  start_time = time.time()
+
+  while time.time() - start_time < _time:
+    # kalau auto_stop aktif, cek jarak
+    if auto_stop:
+      try:
+        distance = robot.get_distance()
+        if distance != -1 and distance < obstacle_threshold:
+          print(f"[AUTO STOP] Obstacle terdeteksi ({distance} cm), berhenti lebih awal!")
+          robot.berhenti()
+          return  # keluar dari fungsi lebih cepat
+      except Exception as e:
+        print(f"[AUTO STOP ERROR] {e}")
+
+    time.sleep(0.1)  # cek setiap 100ms
+
+  # kalau waktu habis dan gak ada obstacle
   robot.berhenti()
 
 def run_commands(commands):
   for c in commands:
-    cmd = f"move|{c['type']}:{c['duration']},{c['speed']}"
+    cmd = f"move|{c['type']}:{c['duration']},{c['speed']},{c['max_distance']}"
     parse_move_command(cmd)
 
 # ===============================
@@ -166,13 +201,13 @@ def cleanup():
 if __name__ == "__main__":
   print(f"🚀 Socket.IO robot server running on {HOST}:{PORT}")
   print("Waiting for clients...\n")
-  
+
   # Mulai thread debug jarak
   debug_thread = threading.Thread(target=distance_debug_loop, daemon=True)
   debug_thread.start()
   print("📊 Debug jarak aktif - menampilkan jarak setiap 1 detik")
   print("   Gunakan event 'toggle_distance_debug' untuk menonaktifkan\n")
-  
+
   try:
     eventlet.wsgi.server(eventlet.listen((HOST, PORT)), app)
   except KeyboardInterrupt:
