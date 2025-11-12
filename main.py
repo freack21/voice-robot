@@ -171,7 +171,7 @@ def wait_time_to_stop(_time=0, obstacle_threshold=10):
       except Exception as e:
         print(f"[AUTO STOP ERROR] {e}")
 
-    time.sleep(0.1)  # cek setiap 100ms
+    # time.sleep(0.1)  # cek setiap 100ms
 
   # kalau waktu habis dan gak ada obstacle
   robot.berhenti()
