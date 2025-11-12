@@ -18,11 +18,7 @@ if os.path.exists(ENV_FILE):
 HOST = _env_.get("HOST", "0.0.0.0")
 PORT = _env_.get("PORT", 3210)
 DEBUG = _env_.get("DEBUG", True)
-
-# ===============================
-# VARIABEL GLOBAL UNTUK DEBUG JARAK
-# ===============================
-distance_debug_enabled = DEBUG
+distance_debug_enabled = _env_.get("DISTANCE_DEBUG", False)
 
 # ===============================
 # INISIALISASI SERVER
