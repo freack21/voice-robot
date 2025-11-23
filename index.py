@@ -32,6 +32,7 @@ class SocketConn :
   def initSocketIO(self) :
     self.sio = socketio.Client()
 
+    self.sio.on("connect", self.on_connect)
     self.sio.on("disconnect", self.on_disconnect)
     self.sio.on("perintah", self.on_perintah)
     self.sio.on("run_commands", self.on_run_commands)
