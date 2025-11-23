@@ -38,13 +38,13 @@ class SocketConn :
 
 
   # ++++++++++++++++++++++++++++++++++++
-  @sio.event
-  def connect(self):
+  @sio.on("connect")
+  def on_connect(self):
     print(f"'{self.myUsername}' connected to Socket.IO server!")
     sio.emit('join', self.myUsername)
 
-  @sio.event
-  def disconnect(self):
+  @sio.on("disconnect")
+  def on_disconnect(self):
     print(f"'{self.myUsername}' disconnected from Socket.IO server!")
 
   @sio.on("perintah")
