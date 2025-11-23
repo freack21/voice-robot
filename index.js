@@ -55,6 +55,7 @@ io.on("connection", (socket) => {
       IP_basestation,
       PORT_basestation,
     });
+    goodInfo("ping...");
   };
 
   const logging = (info, type = "basic") => {
@@ -128,6 +129,7 @@ io.on("connection", (socket) => {
     }
 
     id_robots[robot] && io.to(id_robots[robot]).emit("perintah", perintah);
+    goodInfo(`${robot} : ${perintah}`);
   };
 
   //kirim perintah ke robot
@@ -138,20 +140,23 @@ io.on("connection", (socket) => {
   });
 
   socket.on("run-commands", ({ commands, robot }) => {
-    logging("COMMANDS: " + JSON.stringify(commands, null, 2));
     io.to(id_robots[robot]).emit("run_commands", commands || []);
+    goodInfo(`${robot} : ${commands}`);
   });
 
   socket.on("set-autostop", ({ robot, autostop }) => {
     io.to(id_robots[robot]).emit("set_autostop", autostop);
+    goodInfo(`${robot} : set_autostop ${autostop}`);
   });
 
   socket.on("get-autostop", ({ robot }) => {
     io.to(id_robots[robot]).emit("get_autostop");
+    goodInfo(`${robot} : get_autostop`);
   });
 
   socket.on("post_autostop", ({ robot, autostop }) => {
     io.emit("post-autostop", { robot, autostop });
+    goodInfo(`${robot} : post_autostop ${autostop}`);
   });
 });
 

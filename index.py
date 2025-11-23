@@ -47,6 +47,7 @@ class SocketConn :
   def on_connect(self):
     print(f"'{self.myUsername}' connected to Socket.IO server!")
     self.sio.emit('join', self.myUsername)
+    self.sio.emit("post_autostop", { "autostop": self.autostop, "robot": self.myUsername })
 
   def on_disconnect(self):
     print(f"'{self.myUsername}' disconnected from Socket.IO server!")
@@ -138,8 +139,8 @@ class SocketConn :
     self.robot.berhenti()
 
   def run_commands(self, commands):
-    for command in commands:
-      cmd = f"move|{command['type']}:{command['time']},{command['speed']},{c['max_distance']}"
+    for c in commands:
+      cmd = f"move|{c['type']}:{c['duration']},{c['speed']},{c['max_distance']}"
       self.parse_move_command(cmd)
 
 
