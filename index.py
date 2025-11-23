@@ -9,18 +9,11 @@ _env_ = {}
 with open(ENV_FILE, "r") as f:
   _env_ = json.load(f)
 
-sio = socketio.Client()
-def initSocketIO(alamatIP) :
-  global sio
-  sio.connect(alamatIP)
-
 class SocketConn :
-  global sio
-
   def __init__(self) :
     self.initRobot()
     self.initGlobalVars()
-    initSocketIO(self.alamatIP)
+    self.initSocketIO()
 
 
   # ++++++++++++++++++++++++++++++++++++
@@ -36,47 +29,52 @@ class SocketConn :
     self.autostop = False
     self.distance = 0
 
+  def initSocketIO(self) :
+    self.sio = socketio.Client()
+
+    self.sio.on("disconnect", self.on_disconnect)
+    self.sio.on("perintah", self.on_perintah)
+    self.sio.on("run_commands", self.on_run_commands)
+    self.sio.on("set_autostop", self.on_set_autostop)
+    self.sio.on("get_autostop", self.on_get_autostop)
+    self.sio.on("get_distance", self.on_get_distance)
+
+    self.sio.connect(self.alamatIP)
+
 
   # ++++++++++++++++++++++++++++++++++++
-  @sio.on("connect")
   def on_connect(self):
     print(f"'{self.myUsername}' connected to Socket.IO server!")
-    sio.emit('join', self.myUsername)
+    self.sio.emit('join', self.myUsername)
 
-  @sio.on("disconnect")
   def on_disconnect(self):
     print(f"'{self.myUsername}' disconnected from Socket.IO server!")
 
-  @sio.on("perintah")
   def on_perintah(self, command):
     if self.is_debug:
       print(f'perintah: {command}')
     self.handle_command(command)
 
-  @sio.on("run_commands")
   def on_run_commands(self, commands):
     if self.is_debug:
       print(f'commands: {commands}')
     self.run_commands(commands)
 
-  @sio.on("set_autostop")
   def on_set_autostop(self, autostop):
     if self.is_debug:
       print(f'set autostop to {autostop}')
     self.autostop = autostop
-    sio.emit("post_autostop", { "autostop": self.autostop, "robot": self.myUsername })
+    self.sio.emit("post_autostop", { "autostop": self.autostop, "robot": self.myUsername })
 
-  @sio.on("get_autostop")
   def on_get_autostop(self):
     if self.is_debug:
       print(f'autostop: {self.autostop}')
-    sio.emit("post_autostop", { "autostop": self.autostop, "robot": self.myUsername })
+    self.sio.emit("post_autostop", { "autostop": self.autostop, "robot": self.myUsername })
 
-  @sio.on("get_distance")
   def on_get_distance(self):
     if self.is_debug:
       print(f'distance: {self.distance}')
-    sio.emit("post_distance", { "distance": self.distance, "robot": self.myUsername })
+    self.sio.emit("post_distance", { "distance": self.distance, "robot": self.myUsername })
 
 
   # ++++++++++++++++++++++++++++++++++++
